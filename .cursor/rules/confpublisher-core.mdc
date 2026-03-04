@@ -1,0 +1,103 @@
+---
+description: Core architecture and domain rules for the Confluence Publisher web application
+alwaysApply: true
+---
+
+# Confluence Publisher – Core Rules
+
+## Domain & Requirements
+
+- **App name and purpose**: The project is a web application called **Confluence Publisher** for composing, scheduling, and publishing Confluence-like pages with attachments.
+- **Primary persona**: Focus on the **content manager** workflow (compose → preview → schedule/publish → monitor status → retry).
+- **Initial non-goals** (do NOT implement unless scope is explicitly expanded):
+  - Multi-tenant authentication (assume a single user/team for now).
+  - Advanced Confluence features (macros, templates, rich workflows).
+  - Page versioning and diff tracking.
+  - Real Confluence API integration (use a stub provider in development).
+
+## Backend Technology & Architecture
+
+- **Language & platform**: Use **Java** with a modern framework (Spring Boot or similar) for the backend REST API.
+- **Database**: Use **PostgreSQL** for persistence via a proper schema and migrations (e.g. Flyway or Liquibase).
+- **API style**:
+  - Expose **REST endpoints** under `/api/**` that follow the resources from the README (`Attachments`, `Pages`, `Schedules`, `Publishing`, `AI`).
+  - Use standard HTTP status codes and JSON response bodies.
+- **Layered design**:
+  - Separate **controller**, **service**, **repository**, and **domain/model** layers.
+  - Keep Confluence integration (even stubbed) behind a **provider adapter interface**.
+
+## Core Domain Model
+
+- **Entities and fields** (aligned with README):
+  - `Attachment`: `id`, `filename`, `contentType`, `size`, `storagePath`, `description`.
+  - `Page`: `id`, `title`, `content`, `spaceKey`, `parentPageId`, `createdAt`, `updatedAt`.
+  - `PageAttachment` (junction): `pageId`, `attachmentId`, `position`.
+  - `Schedule`: `id`, `pageId`, `scheduledAt`, `status`, `attemptCount`, `lastError`.
+  - `PublishLog`: `id`, `pageId`, `provider`, `remotePageId` (Confluence), `status`, `message`, `createdAt`.
+- **Relationships**:
+  - `Page` → `PageAttachment` → `Attachment` (one-to-many).
+  - `Page` → `Schedule` (one-to-many).
+  - `Page` → `PublishLog` (one-to-many).
+
+## API Endpoints (Backend)
+
+Implement the following endpoints with clear DTOs and validation:
+
+- **Attachments**
+  - `POST /api/attachments` – upload attachment file and metadata.
+  - `GET /api/attachments/{id}` – return attachment metadata (and optionally a presigned/download URL rather than raw bytes).
+- **Pages**
+  - `POST /api/pages` – create a page with title, content, space key, parent page, and attachment references.
+  - `GET /api/pages/{id}` – fetch a page including its attachments.
+  - `GET /api/pages` – list pages (with pagination and simple filters when needed).
+- **Schedules**
+  - `POST /api/schedules` – schedule a page for future publication.
+  - `GET /api/schedules` – list schedules.
+  - `GET /api/schedules/{id}` – get schedule status.
+- **Publishing**
+  - `POST /api/confluence/publish` – publish a page immediately using the provider adapter.
+  - `GET /api/confluence/status/{pageId}` – get publication status from logs/provider.
+- **AI**
+  - `POST /api/ai/improve-content` – accept text, return improved content.
+  - `POST /api/ai/generate-summary` – accept text, return summary.
+  - `POST /api/ai/suggest-title` – accept text, return title suggestions.
+
+## Provider Adapter Pattern (Confluence Integration)
+
+- Define a **base provider interface** in the backend:
+  - `publishPage(spaceKey, title, content, parentPageId, attachmentPaths) -> (pageId, message)`.
+  - `getStatus(pageId) -> status`.
+- Implement at least a **`ConfluenceStubProvider`** for development:
+  - Simulates Confluence API responses.
+  - Returns mock page IDs.
+  - Can simulate failures for testing.
+- All publishing-related controllers/services must depend on the **provider interface**, not a concrete implementation, to allow swapping in a real provider later.
+
+## Frontend & UX Expectations
+
+- **Frontend stack**: Use a modern SPA framework (React, Vue, or similar) that:
+  - Talks to the Java backend via the REST API.
+  - Provides workflows for:
+    - Composing and previewing a page (title + rich content + attachments).
+    - Scheduling or immediate publishing.
+    - Viewing publication status and logs.
+    - Triggering AI actions (improve, summarize, suggest title).
+- **UX guidelines**:
+  - Make the content manager’s journey clear and linear: compose → preview → schedule/publish → status.
+  - Show clear statuses: `queued`, `published`, `failed` and allow safe **retry** when failed.
+
+## Security, Compliance, and Testing
+
+- **Secrets & configuration**:
+  - Never hard-code secrets; use **environment variables** (or external config) for DB credentials, provider settings, and AI keys.
+- **Input and attachments**:
+  - Validate and sanitize all user inputs.
+  - Enforce **file size** and **file type** limits for attachments.
+- **Logging**:
+  - Do not log secrets or sensitive payloads.
+  - Capture errors and publishing attempts in `PublishLog`.
+- **Testing**:
+  - Write **unit tests** for services and provider adapter logic.
+  - Write **integration tests** for API endpoints against a test PostgreSQL database.
+  - Prefer using the **stub provider** in tests and CI to avoid external dependencies.
+
