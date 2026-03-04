@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -21,6 +22,14 @@ public class AttachmentController {
 
     private static final long MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
     private static final Path STORAGE_ROOT = Path.of("data", "attachments");
+    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "application/pdf",
+            "text/plain",
+            "application/octet-stream"
+    );
 
     private final AttachmentRepository attachmentRepository;
 
@@ -42,6 +51,13 @@ public class AttachmentController {
                     .body("File is too large. Max 10MB.");
         }
 
+        String contentType = Optional.ofNullable(file.getContentType())
+                .orElse("application/octet-stream");
+        if (!ALLOWED_CONTENT_TYPES.contains(contentType)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Unsupported file type: " + contentType);
+        }
+
         Files.createDirectories(STORAGE_ROOT);
 
         String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null
@@ -57,19 +73,29 @@ public class AttachmentController {
         String storedName = UUID.randomUUID() + extension;
         Path destination = STORAGE_ROOT.resolve(storedName);
 
-        Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
-
         Attachment attachment = new Attachment();
         attachment.setFilename(originalFilename);
-        attachment.setContentType(
-                Optional.ofNullable(file.getContentType()).orElse("application/octet-stream")
-        );
+        attachment.setContentType(contentType);
         attachment.setSize(file.getSize());
         attachment.setStoragePath(destination.toString());
         attachment.setDescription(description);
 
-        Attachment saved = attachmentRepository.save(attachment);
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        try {
+            Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+            Attachment saved = attachmentRepository.save(attachment);
+            return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        } catch (IOException | RuntimeException ex) {
+            try {
+                Files.deleteIfExists(destination);
+            } catch (IOException ignored) {
+                // best-effort cleanup
+            }
+
+            if (ex instanceof IOException ioException) {
+                throw ioException;
+            }
+            throw ex;
+        }
     }
 
     @GetMapping("/{id}")
