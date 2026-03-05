@@ -6,6 +6,15 @@ type Page = {
   content: string;
   spaceKey: string;
   parentPageId?: string | null;
+  attachments?: AttachmentSummary[];
+};
+
+type AttachmentSummary = {
+  id: number;
+  filename: string;
+  contentType: string;
+  size: number;
+  description?: string | null;
 };
 
 type NewPageForm = {
@@ -28,6 +37,11 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<NewPageForm>(initialForm);
   const [submitting, setSubmitting] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<AttachmentSummary[]>([]);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiTitles, setAiTitles] = useState<string[] | null>(null);
+  const [publishing, setPublishing] = useState<Record<number, string>>({});
+  const [scheduling, setScheduling] = useState<Record<number, string>>({});
 
   const loadPages = async () => {
     setLoading(true);
@@ -63,27 +77,163 @@ const App: React.FC = () => {
     setSubmitting(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      params.append("title", form.title);
-      params.append("content", form.content);
-      params.append("spaceKey", form.spaceKey);
-      if (form.parentPageId.trim()) {
-        params.append("parentPageId", form.parentPageId.trim());
-      }
+      const payload = {
+        title: form.title,
+        content: form.content,
+        spaceKey: form.spaceKey,
+        parentPageId: form.parentPageId.trim() || null,
+        attachmentIds: attachedFiles.map((a) => a.id)
+      };
 
-      const res = await fetch(`/api/pages?${params.toString()}`, {
-        method: "POST"
+      const res = await fetch(`/api/pages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
       });
       if (!res.ok) {
         throw new Error(`Failed to create page (${res.status})`);
       }
       setForm(initialForm);
+      setAttachedFiles([]);
+      setAiSummary(null);
+      setAiTitles(null);
       await loadPages();
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Unknown error";
       setError(message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleAttachmentUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/attachments", {
+        method: "POST",
+        body: formData
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to upload attachment (${res.status})`);
+      }
+      const data: AttachmentSummary = await res.json();
+      setAttachedFiles((prev) => [...prev, data]);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setError(message);
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const handleImproveContent = async () => {
+    setError(null);
+    try {
+      const res = await fetch("/api/ai/improve-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: form.content })
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to improve content (${res.status})`);
+      }
+      const data = (await res.json()) as { improvedContent: string };
+      setForm((prev) => ({ ...prev, content: data.improvedContent }));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setError(message);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    setError(null);
+    try {
+      const res = await fetch("/api/ai/generate-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: form.content })
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to generate summary (${res.status})`);
+      }
+      const data = (await res.json()) as { summary: string };
+      setAiSummary(data.summary);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setError(message);
+    }
+  };
+
+  const handleSuggestTitle = async () => {
+    setError(null);
+    try {
+      const res = await fetch("/api/ai/suggest-title", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: form.content })
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to suggest title (${res.status})`);
+      }
+      const data = (await res.json()) as { titles: string[] };
+      setAiTitles(data.titles);
+      if (data.titles.length > 0) {
+        setForm((prev) => ({ ...prev, title: data.titles[0] }));
+      }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setError(message);
+    }
+  };
+
+  const handlePublishNow = async (pageId: number) => {
+    setPublishing((prev) => ({ ...prev, [pageId]: "Publishing..." }));
+    try {
+      const res = await fetch(`/api/confluence/publish?pageId=${pageId}`, {
+        method: "POST"
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to publish (${res.status})`);
+      }
+      const data = (await res.json()) as { status: string; message: string };
+      setPublishing((prev) => ({
+        ...prev,
+        [pageId]: `${data.status}: ${data.message}`
+      }));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setPublishing((prev) => ({ ...prev, [pageId]: `Error: ${message}` }));
+    }
+  };
+
+  const handleQuickSchedule = async (pageId: number) => {
+    // schedule 5 minutes from now
+    const scheduledAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    setScheduling((prev) => ({ ...prev, [pageId]: "Scheduling..." }));
+    try {
+      const res = await fetch("/api/schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pageId, scheduledAt })
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to schedule (${res.status})`);
+      }
+      setScheduling((prev) => ({
+        ...prev,
+        [pageId]: `Scheduled at ${scheduledAt}`
+      }));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setScheduling((prev) => ({ ...prev, [pageId]: `Error: ${message}` }));
     }
   };
 
@@ -212,6 +362,141 @@ const App: React.FC = () => {
                   }}
                 />
               </label>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                  marginTop: "0.5rem",
+                  alignItems: "center"
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.8rem",
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "999px",
+                    border: "1px solid #374151",
+                    cursor: "pointer",
+                    background: "#020617"
+                  }}
+                >
+                  Attach file
+                  <input
+                    type="file"
+                    onChange={handleAttachmentUpload}
+                    style={{ display: "none" }}
+                  />
+                </label>
+                {attachedFiles.map((file) => (
+                  <span
+                    key={file.id}
+                    style={{
+                      fontSize: "0.75rem",
+                      padding: "0.2rem 0.6rem",
+                      borderRadius: "999px",
+                      border: "1px solid #1f2937",
+                      background: "#020617"
+                    }}
+                  >
+                    {file.filename}
+                  </span>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                  marginTop: "0.75rem"
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleImproveContent}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "999px",
+                    border: "1px solid #374151",
+                    background: "#020617",
+                    color: "#e5e7eb",
+                    fontSize: "0.8rem",
+                    cursor: "pointer"
+                  }}
+                >
+                  AI: Improve content
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateSummary}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "999px",
+                    border: "1px solid #374151",
+                    background: "#020617",
+                    color: "#e5e7eb",
+                    fontSize: "0.8rem",
+                    cursor: "pointer"
+                  }}
+                >
+                  AI: Generate summary
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSuggestTitle}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "999px",
+                    border: "1px solid #374151",
+                    background: "#020617",
+                    color: "#e5e7eb",
+                    fontSize: "0.8rem",
+                    cursor: "pointer"
+                  }}
+                >
+                  AI: Suggest title
+                </button>
+              </div>
+
+              {aiSummary && (
+                <div
+                  style={{
+                    marginTop: "0.75rem",
+                    padding: "0.75rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid #1f2937",
+                    background: "#020617",
+                    fontSize: "0.8rem",
+                    color: "#d1d5db"
+                  }}
+                >
+                  <strong style={{ display: "block", marginBottom: "0.25rem" }}>
+                    AI summary
+                  </strong>
+                  {aiSummary}
+                </div>
+              )}
+
+              {aiTitles && aiTitles.length > 1 && (
+                <div
+                  style={{
+                    marginTop: "0.75rem",
+                    fontSize: "0.8rem",
+                    color: "#9ca3af"
+                  }}
+                >
+                  <strong style={{ display: "block", marginBottom: "0.25rem" }}>
+                    Other suggested titles
+                  </strong>
+                  <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+                    {aiTitles.slice(1).map((t) => (
+                      <li key={t}>{t}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={submitting}
@@ -360,6 +645,89 @@ const App: React.FC = () => {
                       ? `${page.content.slice(0, 260)}…`
                       : page.content}
                   </p>
+
+                  {page.attachments && page.attachments.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: "0.5rem",
+                        fontSize: "0.75rem",
+                        color: "#9ca3af",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "0.35rem"
+                      }}
+                    >
+                      {page.attachments.map((att) => (
+                        <span
+                          key={att.id}
+                          style={{
+                            padding: "0.2rem 0.55rem",
+                            borderRadius: "999px",
+                            border: "1px solid #1f2937",
+                            background: "#020617"
+                          }}
+                        >
+                          {att.filename}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      marginTop: "0.6rem",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "0.5rem",
+                      fontSize: "0.8rem"
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleQuickSchedule(page.id)}
+                      style={{
+                        padding: "0.3rem 0.7rem",
+                        borderRadius: "999px",
+                        border: "1px solid #374151",
+                        background: "#020617",
+                        color: "#e5e7eb",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Schedule +5 min
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePublishNow(page.id)}
+                      style={{
+                        padding: "0.3rem 0.7rem",
+                        borderRadius: "999px",
+                        border: "1px solid #374151",
+                        background: "#020617",
+                        color: "#e5e7eb",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Publish now
+                    </button>
+                  </div>
+
+                  {(scheduling[page.id] || publishing[page.id]) && (
+                    <p
+                      style={{
+                        marginTop: "0.4rem",
+                        fontSize: "0.75rem",
+                        color: "#9ca3af"
+                      }}
+                    >
+                      {scheduling[page.id] && (
+                        <span>{scheduling[page.id]} </span>
+                      )}
+                      {publishing[page.id] && (
+                        <span>• {publishing[page.id]}</span>
+                      )}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
