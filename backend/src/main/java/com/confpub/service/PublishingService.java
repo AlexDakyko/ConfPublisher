@@ -52,7 +52,7 @@ public class PublishingService {
         log.setPage(page);
         log.setProvider(publishingProvider.getClass().getSimpleName());
         log.setRemotePageId(result.remotePageId());
-        log.setStatus(PublishLog.Status.SUCCESS);
+        log.setStatus(mapStatus(result.status()));
         log.setMessage(result.message());
 
         return publishLogRepository.save(log);
@@ -61,6 +61,18 @@ public class PublishingService {
     public PublishLog getLatestLogForPage(Long pageId) {
         return publishLogRepository.findFirstByPageIdOrderByCreatedAtDesc(pageId)
                 .orElse(null);
+    }
+
+    private PublishLog.Status mapStatus(String providerStatus) {
+        if (providerStatus == null) {
+            return PublishLog.Status.FAILED;
+        }
+        String normalized = providerStatus.trim().toUpperCase();
+        return switch (normalized) {
+            case "SUCCESS", "PUBLISHED", "OK" -> PublishLog.Status.SUCCESS;
+            case "FAILED", "ERROR" -> PublishLog.Status.FAILED;
+            default -> PublishLog.Status.FAILED;
+        };
     }
 }
 
