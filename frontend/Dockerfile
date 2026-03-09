@@ -2,14 +2,20 @@
 FROM node:18-alpine AS build
 WORKDIR /app
 
-# Устанавливаем зависимости
+# Копируем манифесты
 COPY package*.json ./
-RUN npm ci --no-audit --fund=false
+
+# Если есть lock-файл — используем npm ci; если нет — npm install
+RUN if [ -f package-lock.json ]; then \
+      npm ci --no-audit --fund=false; \
+    else \
+      npm install --no-audit --fund=false; \
+    fi
 
 # Копируем исходники и собираем
 COPY . .
 # В Vite переменные VITE_* читаются на этапе сборки.
-# В проде будем звать бэкенд через относительный путь /api
+# В проде зовём бэкенд через относительный путь /api
 ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
