@@ -15,7 +15,7 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      # Ждём, пока Postgres будет Готов принимать подключения
+      # Ждём, пока Postgres будет готов принимать подключения
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
@@ -26,7 +26,6 @@ services:
     build:
       context: ./backend
     environment:
-      # Профиль для докера (если захочешь — добавим application-docker.yml позже)
       SPRING_PROFILES_ACTIVE: docker
       # ВАЖНО: именно такие переменные понимает Spring Boot «из коробки»
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/confpublisher
@@ -36,18 +35,15 @@ services:
     ports:
       - "9090:8080"   # API доступен на http://localhost:9090
     depends_on:
-      # Ждём не просто старт контейнера БД, а именно состояние "здоров" (healthy)
       db:
         condition: service_healthy
 
   frontend:
     build:
       context: ./frontend
-    environment:
-      # Чтобы фронт знал адрес API
-      VITE_API_BASE_URL: http://localhost:9090
+    # В проде фронт раздаётся Nginx на 80‑м, наружу пробрасываем на 3000
     ports:
-      - "5173:5173"
+      - "3000:80"
     depends_on:
       - backend
 
