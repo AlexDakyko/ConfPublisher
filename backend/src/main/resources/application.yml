@@ -1,32 +1,40 @@
 server:
-  # Порт сервера берём из переменной окружения SERVER_PORT (по умолчанию 8080)
+  # 4. Порт сервера берём из переменной окружения SERVER_PORT (по умолчанию 8080)
   port: ${SERVER_PORT:8080}
 
 spring:
   datasource:
-    # Все 3 параметра придут из docker-compose (env):
+    # Эти параметры придут из docker-compose (env)
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/confpublisher}
     username: ${SPRING_DATASOURCE_USERNAME:confpublisher}
     password: ${SPRING_DATASOURCE_PASSWORD:confpublisher}
+
   jpa:
     hibernate:
-      # Для разработки: автоматически создаём/обновляем схему (чтобы не падать на пустой БД)
+      # Для разработки: автоматически создаём/обновляем схему
       ddl-auto: update
     open-in-view: false
     properties:
       hibernate:
-        # Диалект для Postgres (можно не задавать — определяется автоматически, но оставим явно)
+        # Диалект для Postgres (можно не задавать — определяется сам, но оставим явно)
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-# CORS: разрешаем фронту (Vite dev server на 5173) обращаться к API (9090)
-spring:
+  # CORS: разрешаем фронту (Vite dev server на 5173) обращаться к API (9090)
   mvc:
     cors:
       mappings:
         "[/**]":
-          allowed-origins: "http://localhost:5173"
-          allowed-methods: "*"
-          allowed-headers: "*"
+          allowed-origins:
+            - http://localhost:5173
+          allowed-methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          allowed-headers:
+            - "*"
           allow-credentials: true
           max-age: 3600
 
@@ -34,5 +42,5 @@ management:
   endpoints:
     web:
       exposure:
-        # Открываем только health и info (минимум, что нужно)
+        # Открываем только health и info (минимально нужное)
         include: health,info
