@@ -10,8 +10,8 @@ services:
       POSTGRES_PASSWORD: confpublisher
     # Порт БД наружу не обязателен — контейнеры и так общаются по внутренней сети.
     # Если хочешь подключаться к БД с хоста (psql/IDE), раскомментируй следующую строку:
-    # ports:
-    #   - "5432:5432"
+    ports:
+     - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:

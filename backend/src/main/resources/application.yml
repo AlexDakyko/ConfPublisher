@@ -42,5 +42,5 @@ management:
   endpoints:
     web:
       exposure:
-        # Открываем только health и info (минимально нужное)
-        include: health,info
+        # Открываем только health и info (минимально нужное + мапинг)
+        include: health,info,mappings
