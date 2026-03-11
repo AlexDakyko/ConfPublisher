@@ -1,51 +1,69 @@
+# === СЕРВЕР ===
 server:
-  # 4. Порт сервера берём из переменной окружения SERVER_PORT (по умолчанию 8080)
+  # По умолчанию стартуем на 9090 (можно переопределить SERVER_PORT=8080 и т.п.)
   port: ${SERVER_PORT:9090}
 
+# === SPRING/ДАТАБАЗА ===
 spring:
   datasource:
-    # Эти параметры придут из docker-compose (env)
+    # Мы закрепили БД на 5433 (docker compose: "5433:5432").
+    # Если у тебя в compose проброшено "5432:5432", поменяй на 5432
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5433/confpublisher}
     username: ${SPRING_DATASOURCE_USERNAME:confpublisher}
     password: ${SPRING_DATASOURCE_PASSWORD:confpublisher}
 
+  jpa:
+    # Не держим открытую сессию до web-слоя
+    open-in-view: false
+    hibernate:
+      # Для разработки: авто-обновление схемы
+      ddl-auto: update
+    properties:
+      # Плоские ключи передаются в Hibernate как есть
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+      # Исправляет работу с LOB в Postgres (вместе с @Transactional на чтении)
+      hibernate.jdbc.lob.non_contextual_creation: true
 
-  pring:
-    jpa:
-      # 1) НЕ держим открытой сессию на веб-слой
-      open-in-view: false
-
-      # 2) Авто-создание/обновление схемы для разработки
-      hibernate:
-        ddl-auto: update
-
-      # 3) Свойства Hibernate: ПИШЕМ КЛЮЧИ ПЛОСКО (через точки), без вложенных карт
-      properties:
-        hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
-        hibernate.jdbc.lob.non_contextual_creation: true
-
-  # CORS: разрешаем фронту (Vite dev server на 5173) обращаться к API (9090)
+  # CORS: разрешаем фронту (Vite dev server на 5173) обращаться к API
   mvc:
     cors:
       mappings:
         "[/**]":
-          allowed-origins:
-            - http://localhost:5173
-          allowed-methods:
-            - GET
-            - POST
-            - PUT
-            - PATCH
-            - DELETE
-            - OPTIONS
-          allowed-headers:
-            - "*"
+          allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+          allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+          allowed-headers: "*"
           allow-credentials: true
           max-age: 3600
 
+  # Ограничения на загрузку файлов (можно переопределить переменными)
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:10MB}
+      max-request-size: ${MAX_REQUEST_SIZE:10MB}
+
+# === ACTUATOR ===
 management:
   endpoints:
     web:
       exposure:
-        # Открываем только health и info (минимально нужное + мапинг)
         include: health,info,mappings
+
+# === SPRINGDOC / SWAGGER-UI ===
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    # /swagger-ui.html редиректит в /swagger-ui/index.html — оставим совместимость
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+# === ПРИЛОЖЕНИЕ (наши настройки) ===
+app:
+  storage:
+    # Базовая директория для файлов вложений.
+    # В dev по умолчанию — data/attachments в текущей рабочей папке процесса.
+    # В prod лучше задавать абсолютный путь через APP_STORAGE_DIR.
+    base-dir: ${APP_STORAGE_DIR:data/attachments}
