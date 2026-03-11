@@ -1,6 +1,6 @@
 server:
   # 4. Порт сервера берём из переменной окружения SERVER_PORT (по умолчанию 8080)
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:9090}
 
 spring:
   datasource:
@@ -9,15 +9,20 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:confpublisher}
     password: ${SPRING_DATASOURCE_PASSWORD:confpublisher}
 
-  jpa:
-    hibernate:
-      # Для разработки: автоматически создаём/обновляем схему
-      ddl-auto: update
-    open-in-view: false
-    properties:
+
+  pring:
+    jpa:
+      # 1) НЕ держим открытой сессию на веб-слой
+      open-in-view: false
+
+      # 2) Авто-создание/обновление схемы для разработки
       hibernate:
-        # Диалект для Postgres (можно не задавать — определяется сам, но оставим явно)
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        ddl-auto: update
+
+      # 3) Свойства Hibernate: ПИШЕМ КЛЮЧИ ПЛОСКО (через точки), без вложенных карт
+      properties:
+        hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+        hibernate.jdbc.lob.non_contextual_creation: true
 
   # CORS: разрешаем фронту (Vite dev server на 5173) обращаться к API (9090)
   mvc:

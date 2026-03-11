@@ -37,6 +37,37 @@ public class AttachmentController {
         this.attachmentRepository = attachmentRepository;
     }
 
+    // ======== DOWNLOAD RAW FILE ========
+    @GetMapping("/{id}/download")
+    public ResponseEntity<org.springframework.core.io.Resource> download(@PathVariable Long id) throws java.io.IOException {
+        var attOpt = attachmentRepository.findById(id);
+        if (attOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        var att = attOpt.get();
+
+        java.nio.file.Path path = java.nio.file.Paths.get(att.getStoragePath());
+        if (!path.isAbsolute()) {
+            path = java.nio.file.Paths.get("").toAbsolutePath().resolve(path).normalize();
+        }
+
+        var resource = new org.springframework.core.io.FileSystemResource(path.toFile());
+        if (!resource.exists() || !resource.isReadable()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String filename = att.getFilename();
+        String contentType = (att.getContentType() != null && !att.getContentType().isBlank())
+                ? att.getContentType()
+                : org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE;
+
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(contentType))
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" +
+                                java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8) + "\"")
+                .body(resource);
+    }
     @PostMapping
     public ResponseEntity<?> uploadAttachment(
             @RequestParam("file") MultipartFile file,

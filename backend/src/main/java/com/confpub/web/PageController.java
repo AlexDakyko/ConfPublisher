@@ -1,5 +1,6 @@
 package com.confpub.web;
 
+import org.springframework.transaction.annotation.Transactional;
 import com.confpub.domain.Attachment;
 import com.confpub.domain.Page;
 import com.confpub.domain.PageAttachment;
@@ -207,22 +208,27 @@ public class PageController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+
+    @Transactional
     @PostMapping("/{id}/publish")
     public ResponseEntity<PublishResponse> publish(@PathVariable Long id) {
         PublishLog log = publishingService.publishNow(id);
-        return ResponseEntity.ok(toPublishResponse(log));
+        return ResponseEntity.ok(toPublishResponse(id, log));
     }
 
+    @Transactional(readOnly = true)
     @GetMapping("/{id}/publish/status")
     public ResponseEntity<PublishResponse> publishStatus(@PathVariable Long id) {
         PublishLog latest = publishingService.getLatestLogForPage(id);
         if (latest == null) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(toPublishResponse(latest));
+        return ResponseEntity.ok(toPublishResponse(id,latest));
     }
 
-    private PublishResponse toPublishResponse(PublishLog log) {
+    private PublishResponse toPublishResponse(Long pageId, PublishLog log) {
         PublishResponse dto = new PublishResponse();
-        dto.setPageId(log.getPage().getId());
+        // Берём pageId из аргумента, чтобы НЕ трогать ленивую связь log.getPage()
+        dto.setPageId(pageId);
+
         dto.setRemotePageId(log.getRemotePageId());
         dto.setStatus(log.getStatus().name());
         dto.setProvider(log.getProvider());
