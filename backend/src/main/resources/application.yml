@@ -5,7 +5,7 @@ server:
 spring:
   datasource:
     # Эти параметры придут из docker-compose (env)
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/confpublisher}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5433/confpublisher}
     username: ${SPRING_DATASOURCE_USERNAME:confpublisher}
     password: ${SPRING_DATASOURCE_PASSWORD:confpublisher}
 
