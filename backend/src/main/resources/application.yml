@@ -1,31 +1,29 @@
 # === СЕРВЕР ===
 server:
-  # По умолчанию стартуем на 9090 (можно переопределить SERVER_PORT=8080 и т.п.)
+  # По умолчанию 9090; мы запускаем на 9091 через Program arguments, это ок
   port: ${SERVER_PORT:9090}
 
-# === SPRING/ДАТАБАЗА ===
+# === SPRING / ДАТАБАЗА / WEB ===
 spring:
   datasource:
-    # Мы закрепили БД на 5433 (docker compose: "5433:5432").
-    # Если у тебя в compose проброшено "5432:5432", поменяй на 5432
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5433/confpublisher}
-    username: ${SPRING_DATASOURCE_USERNAME:confpublisher}
-    password: ${SPRING_DATASOURCE_PASSWORD:confpublisher}
+    # Для твоего локального окружения сейчас БД на 5434 и пользователь postgres
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5434/confpublisher}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
 
   jpa:
-    # Не держим открытую сессию до web-слоя
     open-in-view: false
     hibernate:
-      # Для разработки: авто-обновление схемы
       ddl-auto: update
     properties:
-      # Плоские ключи передаются в Hibernate как есть
-      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
-      # Исправляет работу с LOB в Postgres (вместе с @Transactional на чтении)
-      hibernate.jdbc.lob.non_contextual_creation: true
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          lob:
+            non_contextual_creation: true
 
-  # CORS: разрешаем фронту (Vite dev server на 5173) обращаться к API
   mvc:
+    # CORS: фронт на 5173
     cors:
       mappings:
         "[/**]":
@@ -34,36 +32,40 @@ spring:
           allowed-headers: "*"
           allow-credentials: true
           max-age: 3600
+    # 2.7.1 — просим кидать NoHandlerFoundException для неизвестных URL (чтобы шёл наш JSON)
+    throw-exception-if-no-handler-found: true
 
-  # Ограничения на загрузку файлов (можно переопределить переменными)
+  web:
+    resources:
+      # 2.7.1 — отключаем дефолтные статические маппинги, чтобы 404 уходил в исключение
+      add-mappings: false
+
   servlet:
     multipart:
       max-file-size: ${MAX_FILE_SIZE:10MB}
       max-request-size: ${MAX_REQUEST_SIZE:10MB}
 
-# === ACTUATOR ===
+# === ACTUATOR (опционально) ===
 management:
   endpoints:
     web:
       exposure:
         include: health,info,mappings
 
-# === SPRINGDOC / SWAGGER-UI ===
+# === SPRINGDOC / SWAGGER ===
 springdoc:
   api-docs:
     enabled: true
     path: /v3/api-docs
   swagger-ui:
     enabled: true
-    # /swagger-ui.html редиректит в /swagger-ui/index.html — оставим совместимость
-    path: /swagger-ui.html
+    # Дадим короткий путь /swagger-ui (у тебя /swagger-ui/index.html уже работает)
+    path: /swagger-ui
     operations-sorter: method
     tags-sorter: alpha
 
 # === ПРИЛОЖЕНИЕ (наши настройки) ===
 app:
   storage:
-    # Базовая директория для файлов вложений.
-    # В dev по умолчанию — data/attachments в текущей рабочей папке процесса.
-    # В prod лучше задавать абсолютный путь через APP_STORAGE_DIR.
+    # Базовая директория для вложений; при желании вынесем в volume
     base-dir: ${APP_STORAGE_DIR:data/attachments}
