@@ -8,12 +8,7 @@ import com.confpub.repository.AttachmentRepository;
 import com.confpub.repository.PageAttachmentRepository;
 import com.confpub.repository.PageRepository;
 import com.confpub.service.PublishingService;
-import com.confpub.web.dto.AddAttachmentsRequest;
-import com.confpub.web.dto.CreatePageRequest;
-import com.confpub.web.dto.PageDetailsResponse;
-import com.confpub.web.dto.PublishResponse;
-import com.confpub.web.dto.ReorderAttachmentsRequest;
-import com.confpub.web.dto.UpdatePageRequest;
+import com.confpub.web.dto.*;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,8 +43,22 @@ public class PageController {
     // ==== Pages ====
 
     @GetMapping
-    public List<Page> listPages() {
-        return pageRepository.findAll();
+    public List<PageSummaryResponse> listPages() {
+        return pageRepository.findAll()
+                .stream()
+                .map(this::toSummaryResponse)
+                .toList();
+    }
+
+    private PageSummaryResponse toSummaryResponse(Page page) {
+        PageSummaryResponse s = new PageSummaryResponse();
+        s.setId(page.getId());
+        s.setTitle(page.getTitle());
+        s.setSpaceKey(page.getSpaceKey());
+        s.setParentPageId(page.getParentPageId());
+        s.setCreatedAt(page.getCreatedAt());
+        s.setUpdatedAt(page.getUpdatedAt());
+        return s;
     }
 
     @GetMapping("/{id}")

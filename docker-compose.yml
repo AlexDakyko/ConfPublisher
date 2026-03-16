@@ -1,21 +1,17 @@
-#version: "3.9"
+version: "3.9"
 
 services:
   db:
     image: postgres:16
-    # container_name: confpublisher-postgres   # (опционально; лучше без фиксированного имени)
     environment:
       POSTGRES_DB: confpublisher
-      POSTGRES_USER: confpublisher
-      POSTGRES_PASSWORD: confpublisher
-    # Порт БД наружу не обязателен — контейнеры и так общаются по внутренней сети.
-    # Если хочешь подключаться к БД с хоста (psql/IDE), раскомментируй следующую строку:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
-     - "5433:5432"
+      - "5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      # Ждём, пока Postgres будет готов принимать подключения
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
@@ -27,21 +23,22 @@ services:
       context: ./backend
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      # ВАЖНО: именно такие переменные понимает Spring Boot «из коробки»
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/confpublisher
-      SPRING_DATASOURCE_USERNAME: confpublisher
-      SPRING_DATASOURCE_PASSWORD: confpublisher
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
       SERVER_PORT: 8080
+      APP_STORAGE_DIR: /app/attachments
     ports:
-      - "9090:8080"   # API доступен на http://localhost:9090
+      - "9090:8080"
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - attachments_data:/app/attachments
 
   frontend:
     build:
       context: ./frontend
-    # В проде фронт раздаётся Nginx на 80‑м, наружу пробрасываем на 3000
     ports:
       - "3000:80"
     depends_on:
@@ -49,3 +46,4 @@ services:
 
 volumes:
   db_data:
+  attachments_data:

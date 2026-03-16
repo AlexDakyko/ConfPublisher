@@ -7,14 +7,14 @@ server:
 spring:
   datasource:
     # Для твоего локального окружения сейчас БД на 5434 и пользователь postgres
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5434/confpublisher}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5433/confpublisher}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update
+
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect

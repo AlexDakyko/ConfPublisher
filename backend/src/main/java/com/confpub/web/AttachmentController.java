@@ -168,7 +168,7 @@ public class AttachmentController {
             a.setContentType(contentType);
             a.setSize(file.getSize());
             // В БД храним путь как есть; при download резолвим относительно baseStorageDir, если он относительный
-            a.setStoragePath(destination.toString());
+            a.setStoragePath(storedName);
             a.setDescription(description);
 
             Attachment saved = attachmentRepository.save(a);
