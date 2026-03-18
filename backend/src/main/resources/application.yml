@@ -1,71 +1,48 @@
 # === СЕРВЕР ===
 server:
-  # По умолчанию 9090; мы запускаем на 9091 через Program arguments, это ок
+  # По умолчанию 9090; при запуске ты переопределяешь --server.port=9091 — это нормально
   port: ${SERVER_PORT:9090}
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-exception: true
+    include-stacktrace: always
+
+logging:
+  level:
+    root: INFO
+    com.confpub: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.web.servlet.DispatcherServlet: DEBUG
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: DEBUG
+    org.springframework.web.servlet.handler.HandlerExceptionResolverComposite: DEBUG
+
 
 # === SPRING / ДАТАБАЗА / WEB ===
 spring:
   datasource:
-    # Для твоего локального окружения сейчас БД на 5434 и пользователь postgres
+    # URL, пользователь и пароль — оставляем как в проекте
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5433/confpublisher}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
 
   jpa:
     open-in-view: false
-    hibernate:
-
+    # ВАЖНО: все Hibernate-настройки — только через 'spring.jpa.properties'
     properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        jdbc:
-          lob:
-            non_contextual_creation: true
+      # Чтобы Hibernate не лез в LOB-контекст при работе с TEXT
+      hibernate.jdbc.lob.non_contextual_creation: true
+      # Диалект указывать не нужно — Hibernate сам подберёт и сам же писал варнинг убрать это.
+      # Если очень хочется принудительно — добавь строку ниже:
+      # hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
 
   mvc:
-    # CORS: фронт на 5173
+    # CORS для фронта
     cors:
       mappings:
-        "[/**]":
+        "/**":
           allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
           allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
           allowed-headers: "*"
           allow-credentials: true
           max-age: 3600
-    # 2.7.1 — просим кидать NoHandlerFoundException для неизвестных URL (чтобы шёл наш JSON)
-    throw-exception-if-no-handler-found: true
-
-  web:
-    resources:
-      # 2.7.1 — отключаем дефолтные статические маппинги, чтобы 404 уходил в исключение
-      add-mappings: false
-
-  servlet:
-    multipart:
-      max-file-size: ${MAX_FILE_SIZE:10MB}
-      max-request-size: ${MAX_REQUEST_SIZE:10MB}
-
-# === ACTUATOR (опционально) ===
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,mappings
-
-# === SPRINGDOC / SWAGGER ===
-springdoc:
-  api-docs:
-    enabled: true
-    path: /v3/api-docs
-  swagger-ui:
-    enabled: true
-    # Дадим короткий путь /swagger-ui (у тебя /swagger-ui/index.html уже работает)
-    path: /swagger-ui
-    operations-sorter: method
-    tags-sorter: alpha
-
-# === ПРИЛОЖЕНИЕ (наши настройки) ===
-app:
-  storage:
-    # Базовая директория для вложений; при желании вынесем в volume
-    base-dir: ${APP_STORAGE_DIR:data/attachments}

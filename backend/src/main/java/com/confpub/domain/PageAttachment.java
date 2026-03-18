@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "page_attachments")
+@Table(name = "page_attachment")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,15 +16,14 @@ public class PageAttachment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "page_id", nullable = false)
     private Page page;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "attachment_id", nullable = false)
     private Attachment attachment;
 
-    @Column(name = "position_index")
+    @Column(nullable = false)
     private Integer position;
 }
-

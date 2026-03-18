@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/pages")
 @Validated
 public class PageController {
-
     private final PageRepository pageRepository;
     private final AttachmentRepository attachmentRepository;
     private final PageAttachmentRepository pageAttachmentRepository;
@@ -69,6 +68,7 @@ public class PageController {
     }
 
     @PostMapping
+    @Transactional // ✅ добавлено
     public ResponseEntity<PageDetailsResponse> createPage(@Valid @RequestBody CreatePageRequest request) {
         Page page = new Page();
         page.setTitle(request.getTitle());
@@ -90,6 +90,7 @@ public class PageController {
                 pageAttachmentRepository.save(pa);
             }
         }
+
         return ResponseEntity.ok(toDetailsResponse(saved));
     }
 
@@ -98,12 +99,10 @@ public class PageController {
                                                           @Valid @RequestBody UpdatePageRequest request) {
         Page page = pageRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Page not found: " + id));
-
         page.setTitle(request.getTitle());
         page.setContent(request.getContent());
         page.setSpaceKey(request.getSpaceKey());
         page.setParentPageId(request.getParentPageId());
-
         Page saved = pageRepository.save(page);
         return ResponseEntity.ok(toDetailsResponse(saved));
     }
@@ -112,25 +111,21 @@ public class PageController {
     public ResponseEntity<Void> deletePage(@PathVariable Long id) {
         Page page = pageRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Page not found: " + id));
-
-        // удаляем связи, затем саму страницу
         List<PageAttachment> links = pageAttachmentRepository.findByPageIdOrderByPositionAsc(id);
         pageAttachmentRepository.deleteAll(links);
         pageRepository.delete(page);
-
         return ResponseEntity.noContent().build();
     }
 
     // ==== Attachments binding ====
 
     @PostMapping("/{id}/attachments")
+    @Transactional
     public ResponseEntity<PageDetailsResponse> addAttachments(@PathVariable Long id,
                                                               @Valid @RequestBody AddAttachmentsRequest request) {
         Page page = pageRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Page not found: " + id));
-
         int position = pageAttachmentRepository.findByPageIdOrderByPositionAsc(id).size();
-
         for (Long attachmentId : request.getAttachmentIds()) {
             Attachment attachment = attachmentRepository.findById(attachmentId).orElse(null);
             if (attachment == null) continue;
@@ -144,10 +139,10 @@ public class PageController {
     }
 
     @DeleteMapping("/{id}/attachments/{attachmentId}")
+    @Transactional
     public ResponseEntity<PageDetailsResponse> removeAttachment(@PathVariable Long id,
                                                                 @PathVariable Long attachmentId) {
         List<PageAttachment> links = pageAttachmentRepository.findByPageIdOrderByPositionAsc(id);
-
         boolean removed = false;
         for (PageAttachment link : links) {
             if (link.getAttachment().getId().equals(attachmentId)) {
@@ -159,8 +154,7 @@ public class PageController {
         if (!removed) {
             throw new NoSuchElementException("Attachment not linked to page: " + attachmentId);
         }
-
-        // переиндексация позиций
+        // переиндексация
         List<PageAttachment> remaining = pageAttachmentRepository.findByPageIdOrderByPositionAsc(id);
         for (int i = 0; i < remaining.size(); i++) {
             if (remaining.get(i).getPosition() != i) {
@@ -168,29 +162,25 @@ public class PageController {
                 pageAttachmentRepository.save(remaining.get(i));
             }
         }
-
         Page page = pageRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Page not found: " + id));
-
         return ResponseEntity.ok(toDetailsResponse(page));
     }
 
     @PatchMapping("/{id}/attachments/reorder")
+    @Transactional
     public ResponseEntity<PageDetailsResponse> reorderAttachments(@PathVariable Long id,
                                                                   @Valid @RequestBody ReorderAttachmentsRequest request) {
         List<PageAttachment> links = pageAttachmentRepository.findByPageIdOrderByPositionAsc(id);
         if (links.isEmpty()) {
             throw new NoSuchElementException("No attachments for page: " + id);
         }
-
         List<Long> ids = request.getAttachmentIdsInOrder();
         if (ids.size() != links.size()) {
             throw new IllegalArgumentException("Attachment count mismatch");
         }
-
         Map<Long, PageAttachment> byId = links.stream()
                 .collect(Collectors.toMap(l -> l.getAttachment().getId(), l -> l));
-
         int pos = 0;
         for (Long aId : ids) {
             PageAttachment link = byId.get(aId);
@@ -203,24 +193,22 @@ public class PageController {
             }
             pos++;
         }
-
         Page page = pageRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Page not found: " + id));
-
         return ResponseEntity.ok(toDetailsResponse(page));
     }
 
     // ==== Publishing ====
 
-    @Transactional
     @PostMapping("/{id}/publish")
+    @Transactional
     public ResponseEntity<PublishResponse> publish(@PathVariable Long id) {
         PublishLog log = publishingService.publishNow(id);
         return ResponseEntity.ok(toPublishResponse(id, log));
     }
 
-    @Transactional(readOnly = true)
     @GetMapping("/{id}/publish/status")
+    @Transactional(readOnly = true)
     public ResponseEntity<PublishResponse> publishStatus(@PathVariable Long id) {
         PublishLog latest = publishingService.getLatestLogForPage(id);
         if (latest == null) {
@@ -233,7 +221,6 @@ public class PageController {
 
     private PublishResponse toPublishResponse(Long pageId, PublishLog log) {
         PublishResponse dto = new PublishResponse();
-        // Берём pageId из аргумента, чтобы НЕ трогать ленивую связь log.getPage()
         dto.setPageId(pageId);
         dto.setRemotePageId(log.getRemotePageId());
         dto.setStatus(log.getStatus().name());

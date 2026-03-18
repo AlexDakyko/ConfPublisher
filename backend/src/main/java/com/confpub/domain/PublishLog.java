@@ -8,7 +8,7 @@ import lombok.Setter;
 import java.time.Instant;
 
 @Entity
-@Table(name = "publish_logs")
+@Table(name = "publish_log")
 @Getter
 @Setter
 @NoArgsConstructor
