@@ -26,27 +26,40 @@ if errorlevel 1 (
   exit /b 1
 )
 
-REM --- 2) BACKEND (maven image) ---
+REM ================================
+REM === BACKEND (Spring Boot)  ====
+REM ================================
 echo.
-echo [BACKEND] Запускаю Spring Boot из контейнера Maven (порт 9091)...
+echo [BACKEND] Запускаю Spring Boot через Maven-контейнер...
+
 set "BACKEND_DIR=%CD%\backend"
-start "ConfPublisher Backend" cmd /k docker run --rm -it -p 9091:9091 -v "%BACKEND_DIR%":/app -w /app maven:3.9.6-eclipse-temurin-21 mvn -q -Dspring-boot.run.jvmArguments=--server.port=9091 spring-boot:run
 
-REM --- 3) FRONTEND (node image) ---
+start "ConfPublisher Backend" cmd /k ^
+docker run --rm -it -p 9091:9091 -v "%BACKEND_DIR%":/app -w /app maven:3.9.6-eclipse-temurin-21 ^
+mvn -q spring-boot:run -Dspring-boot.run.jvmArguments=-Dserver.port=9091
+
+
+REM ================================
+REM === FRONTEND (Vite + React) ===
+REM ================================
 echo.
-echo [FRONTEND] Запускаю Vite из контейнера Node (порт 5173)...
+echo [FRONTEND] Запускаю Vite через Node-контейнер...
+
 set "FRONTEND_DIR=%CD%\frontend"
-start "ConfPublisher Frontend" cmd /k docker run --rm -it -p 5173:5173 -v "%FRONTEND_DIR%":/app -w /app node:20 bash -lc "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
 
-REM --- 4) Open browser after small delay ---
+start "ConfPublisher Frontend" cmd /k ^
+docker run --rm -it -p 5173:5173 -v "%FRONTEND_DIR%":/app -w /app node:20 bash -lc "npm install --legacy-peer-deps && npm i -D @vitejs/plugin-react && npm run dev -- --host 0.0.0.0 --port 5173"
+
+
+REM --- 4) Авто-открытие браузера ---
 echo.
-echo [INFO] Открываю браузер через 7 секунд...
-timeout /t 7 >nul
+echo [INFO] Открываю браузер через 10 секунд...
+timeout /t 10 >nul
 start http://localhost:5173
 start http://localhost:9091/swagger-ui/index.html
 
 echo.
-echo [OK] Проект запускается в двух окнах (backend и frontend) через Docker.
-echo Закрыть проект = закрыть эти два окна (или Ctrl+C в каждом).
+echo [OK] Проект запущен в двух Docker-окнах (backend и frontend).
+echo Закрыть проект = закрыть эти окна (или Ctrl+C).
 echo.
 pause
