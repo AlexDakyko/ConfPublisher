@@ -8,7 +8,7 @@ import lombok.Setter;
 import java.time.Instant;
 
 @Entity
-@Table(name = "schedules")
+@Table(name = "schedule")
 @Getter
 @Setter
 @NoArgsConstructor

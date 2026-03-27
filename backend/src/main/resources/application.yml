@@ -1,69 +1,48 @@
 # === СЕРВЕР ===
 server:
-  # По умолчанию стартуем на 9090 (можно переопределить SERVER_PORT=8080 и т.п.)
+  # По умолчанию 9090; при запуске ты переопределяешь --server.port=9091 — это нормально
   port: ${SERVER_PORT:9090}
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-exception: true
+    include-stacktrace: always
 
-# === SPRING/ДАТАБАЗА ===
+logging:
+  level:
+    root: INFO
+    com.confpub: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.web.servlet.DispatcherServlet: DEBUG
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: DEBUG
+    org.springframework.web.servlet.handler.HandlerExceptionResolverComposite: DEBUG
+
+
+# === SPRING / ДАТАБАЗА / WEB ===
 spring:
   datasource:
-    # Мы закрепили БД на 5433 (docker compose: "5433:5432").
-    # Если у тебя в compose проброшено "5432:5432", поменяй на 5432
+    # URL, пользователь и пароль — оставляем как в проекте
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5433/confpublisher}
-    username: ${SPRING_DATASOURCE_USERNAME:confpublisher}
-    password: ${SPRING_DATASOURCE_PASSWORD:confpublisher}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
 
   jpa:
-    # Не держим открытую сессию до web-слоя
     open-in-view: false
-    hibernate:
-      # Для разработки: авто-обновление схемы
-      ddl-auto: update
+    # ВАЖНО: все Hibernate-настройки — только через 'spring.jpa.properties'
     properties:
-      # Плоские ключи передаются в Hibernate как есть
-      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
-      # Исправляет работу с LOB в Postgres (вместе с @Transactional на чтении)
+      # Чтобы Hibernate не лез в LOB-контекст при работе с TEXT
       hibernate.jdbc.lob.non_contextual_creation: true
+      # Диалект указывать не нужно — Hibernate сам подберёт и сам же писал варнинг убрать это.
+      # Если очень хочется принудительно — добавь строку ниже:
+      # hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  # CORS: разрешаем фронту (Vite dev server на 5173) обращаться к API
   mvc:
+    # CORS для фронта
     cors:
       mappings:
-        "[/**]":
+        "/**":
           allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
           allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
           allowed-headers: "*"
           allow-credentials: true
           max-age: 3600
-
-  # Ограничения на загрузку файлов (можно переопределить переменными)
-  servlet:
-    multipart:
-      max-file-size: ${MAX_FILE_SIZE:10MB}
-      max-request-size: ${MAX_REQUEST_SIZE:10MB}
-
-# === ACTUATOR ===
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,mappings
-
-# === SPRINGDOC / SWAGGER-UI ===
-springdoc:
-  api-docs:
-    enabled: true
-    path: /v3/api-docs
-  swagger-ui:
-    enabled: true
-    # /swagger-ui.html редиректит в /swagger-ui/index.html — оставим совместимость
-    path: /swagger-ui.html
-    operations-sorter: method
-    tags-sorter: alpha
-
-# === ПРИЛОЖЕНИЕ (наши настройки) ===
-app:
-  storage:
-    # Базовая директория для файлов вложений.
-    # В dev по умолчанию — data/attachments в текущей рабочей папке процесса.
-    # В prod лучше задавать абсолютный путь через APP_STORAGE_DIR.
-    base-dir: ${APP_STORAGE_DIR:data/attachments}

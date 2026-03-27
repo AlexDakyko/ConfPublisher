@@ -1,4 +1,11 @@
+HOW TO:
 
+Download the project as ZIP file from gitHub.
+Unpack.
+Run the bat file "run.bat".
+Wait for the instances to get up.
+To stop the instances, run "stop.bat" file.
+===============================================
 
 Requirements and user stories
 Core user stories
