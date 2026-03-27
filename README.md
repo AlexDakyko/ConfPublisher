@@ -1,4 +1,4 @@
-HOW TO:
+HOW TO launch the application:
 
 Download the project as ZIP file from gitHub.
 Unpack.
